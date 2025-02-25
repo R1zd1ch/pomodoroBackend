@@ -1,0 +1,240 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// prisma/schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+model User {
+  id         Int           @id @unique @default(autoincrement())
+  name       String?
+  username   String        @unique
+  email      String        @unique
+  hash       String
+  hashedRt   String?
+  settingsId String?       @unique
+  friends    Friendship[]  @relation("UserFriends")
+  friendOf   Friendship[]  @relation("FriendOf")
+  settings   UserSettings? @relation(fields: [settingsId], references: [id])
+
+  categories      Category[]
+  tasks           Task[]
+  createdSessions Session[]
+  sessions        SessionMember[]
+  notifications   Notification[]
+  messages        ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model UserSettings {
+  id                    String  @id @default(uuid())
+  workDuration          Int     @default(25)
+  shortBreakDuration    Int     @default(5)
+  longBreakDuration     Int     @default(15)
+  roundsBeforeLongBreak Int     @default(4)
+  autoStartBreaks       Boolean @default(false)
+  autoStartPomodoros    Boolean @default(false)
+  soundEnabled          Boolean @default(true)
+  user                  User?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum FriendshipStatus {
+  ACCEPTED
+  PENDING
+  REJECTED
+}
+
+model Friendship {
+  id       String           @id @default(uuid())
+  userId   Int
+  friendId Int
+  status   FriendshipStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User @relation("UserFriends", fields: [userId], references: [id])
+  friend User @relation("FriendOf", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+}
+
+enum CategoryColor {
+  RED
+  BLUE
+  GREEN
+  YELLOW
+  ORANGE
+  PURPLE
+}
+
+model Category {
+  id        String         @id @default(uuid())
+  name      String
+  color     CategoryColor?
+  icon      String?
+  userId    Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  tasks     Task[]
+  user      User           @relation(fields: [userId], references: [id])
+}
+
+enum TaskStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  REMOVED
+}
+
+model Task {
+  id                 String     @id @default(uuid())
+  title              String
+  description        String?
+  estimatedPomodoros Int?       @default(1) //оценка кол-ва помидоров сука
+  completedPomodoros Int        @default(0)
+  status             TaskStatus @default(ACTIVE)
+  userId             Int
+  categoryId         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
+}
+
+enum SessionStatus {
+  WORK
+  PAUSED
+  BREAK
+  COMPLETED
+}
+
+model Session {
+  id            String          @id @default(uuid())
+  workDuration  Int             @default(25)
+  breakDuration Int             @default(5)
+  roundsPlanned Int             @default(4)
+  currentRound  Int             @default(0)
+  status        SessionStatus   @default(PAUSED)
+  startTime     DateTime
+  endTime       DateTime?
+  creatorId     Int
+  participants  SessionMember[]
+
+  creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  chat    Chat?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum SessionMemberStatus {
+  READY
+  WORKING
+  ON_BREAK
+  LEFT
+}
+
+model SessionMember {
+  id              String              @id @default(uuid())
+  sessionId       String
+  userId          Int
+  joinedAt        DateTime            @default(now())
+  completedRounds Int                 @default(0)
+  currentStatus   SessionMemberStatus @default(READY)
+
+  session Session @relation(fields: [sessionId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+}
+
+model Chat {
+  id        String @id @default(uuid())
+  sessionId String @unique
+
+  messages ChatMessage[]
+  session  Session       @relation(fields: [sessionId], references: [id])
+
+  createdAt     DateTime        @default(now())
+  pinnedMessage PinnedMessage[]
+}
+
+enum ChatMessageType {
+  MESSAGE
+  SYSTEM_JOIN
+  SYSTEM_LEAVE
+  SYSTEM_SESSION_START
+}
+
+model ChatMessage {
+  id         String          @id @default(uuid())
+  chatId     String
+  userId     Int
+  content    String
+  type       ChatMessageType @default(MESSAGE)
+  isEdited   Boolean         @default(false)
+  editedAt   DateTime? //АБоба
+  attachment String?
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  pinnedMessage PinnedMessage[]
+
+  @@index([chatId, createdAt])
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  SESSION_INVITE
+  MESSAGE
+  SYSTEM
+  TASK_REMINDER
+  SESSION_START
+  SESSION_END
+}
+
+model Notification {
+  id      String  @id @default(uuid())
+  type    String
+  message String
+  read    Boolean @default(false)
+  payload Json? //не ебу для чего я добавил это но пусть будет.
+  userId  Int
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model PinnedMessage {
+  id        String   @id @default(uuid())
+  messageId String   @unique
+  chatId    String
+  pinnedAt  DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id])
+  chat    Chat        @relation(fields: [chatId], references: [id])
+}
