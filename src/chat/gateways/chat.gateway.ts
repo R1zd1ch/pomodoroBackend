@@ -11,22 +11,26 @@ import { ChatService } from '../chat.service';
 import { CreateMessageDto } from '../dto/create-message.dto';
 import { UpdateMessageDto } from '../dto/update-message.dto';
 import { PinMessageDto } from '../dto/pin-message.dto';
+import { Logger } from '@nestjs/common';
 
-@WebSocketGateway(3501, {
+@WebSocketGateway({
+  namespace: '/chat',
   cors: {
     origin: '*',
   },
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
+  private readonly logger = new Logger(ChatGateway.name);
+
   constructor(private readonly chatService: ChatService) {}
 
   handleConnection(client: Socket) {
     console.log('Client connected:', client.id);
   }
 
-  handleDisconnect(clinet: Socket) {
-    console.log('Client disconnected:', clinet.id);
+  handleDisconnect(client: Socket) {
+    console.log('Client disconnected:', client.id);
   }
 
   @SubscribeMessage('sendMessage')
@@ -43,8 +47,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       data.sessionId,
       data.dto,
     );
-
+    this.logger.log('Message sent:', message);
+    this.logger.log('Session ID:', `session_${data.sessionId}`);
     this.server.to(`session_${data.sessionId}`).emit('newMessage', message);
+
     return message;
   }
 

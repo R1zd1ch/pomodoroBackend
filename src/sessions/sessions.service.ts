@@ -12,6 +12,7 @@ import {
   SessionStatus,
 } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { UpdateSessionDto } from './dto/update-session.dto';
 
 @Injectable()
 export class SessionsService {
@@ -31,13 +32,17 @@ export class SessionsService {
         },
       },
     });
-    await this.prisma.chat.create({
-      data: {
-        sessionId: session.id,
-      },
-    });
 
-    return await this.getSessionResponse(session.id);
+    if (dto.type !== 'SOLO') {
+      await this.prisma.chat.create({
+        data: {
+          sessionId: session.id,
+        },
+      });
+    }
+    const result = await this.getSessionResponse(session.id);
+    console.log(result);
+    return result;
   }
 
   async addParticipant(sessionId: string, inviterId: number, userId: number) {
@@ -47,6 +52,12 @@ export class SessionsService {
 
     if (!session) {
       throw new NotFoundException('Session not found');
+    }
+
+    if (session.type === 'SOLO') {
+      throw new ForbiddenException(
+        'You cannot add participants to a solo session',
+      );
     }
 
     if (session.creatorId !== inviterId) {
@@ -112,7 +123,7 @@ export class SessionsService {
     }
 
     await this.prisma.sessionMember.update({
-      where: { sessionId_userId: { sessionId, userId: session.creatorId } },
+      where: { sessionId_userId: { sessionId, userId: userId } },
       data: { currentStatus: SessionMemberStatus.LEFT },
     });
 
@@ -128,6 +139,43 @@ export class SessionsService {
     }
 
     return { message: 'User left session successfully' };
+  }
+
+  async updateSoloSessionRoundTimeLeft(
+    userId: number,
+    sessionId: string,
+    roundTimeLeft: number,
+  ) {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId, creatorId: userId },
+    });
+
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+    const dataToUpdate: {
+      roundTimeLeft?: number;
+      currentRound?: number;
+      status?: SessionStatus;
+    } = {
+      roundTimeLeft,
+      currentRound: session.currentRound,
+      status: session.status,
+    };
+
+    return await this.prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        ...dataToUpdate,
+      },
+    });
+  }
+
+  async updateSession(sessionId: string, dto: UpdateSessionDto) {
+    return await this.prisma.session.update({
+      where: { id: sessionId },
+      data: dto,
+    });
   }
 
   async updateSessionStatus(
@@ -148,11 +196,21 @@ export class SessionsService {
       throw new ForbiddenException('Only session creator can update status');
     }
 
-    const updateData: { status: SessionStatus; endTime?: Date } = {
+    const updateData: {
+      status: SessionStatus;
+      endTime?: Date;
+      currentRound?: number;
+    } = {
       status: newStatus,
+      currentRound: session.currentRound,
     };
+
     if (newStatus === 'COMPLETED') {
       updateData.endTime = new Date();
+    }
+
+    if (session.status === 'BREAK') {
+      updateData.currentRound = session.currentRound + 1;
     }
 
     return await this.prisma.session.update({
@@ -167,11 +225,24 @@ export class SessionsService {
       where: {
         OR: [{ creatorId: userId }, { participants: { some: { userId } } }],
         status: { not: 'COMPLETED' },
+        type: 'GROUP',
       },
       include: {
         participants: true,
         chat: true,
       },
+    });
+  }
+
+  async getLastSoloSession(userId: number) {
+    return await this.prisma.session.findFirst({
+      where: {
+        creatorId: userId,
+        type: 'SOLO',
+        OR: [{ status: 'BREAK' }, { status: 'WORK' }, { status: 'PAUSED' }],
+        NOT: { status: 'COMPLETED' },
+      },
+      orderBy: { startTime: 'desc' },
     });
   }
 

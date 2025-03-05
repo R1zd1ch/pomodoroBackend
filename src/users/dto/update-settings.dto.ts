@@ -15,6 +15,10 @@ export class UpdateSettingsDto {
 
   @IsInt()
   @Min(1)
+  roundsPlanned: number;
+
+  @IsInt()
+  @Min(1)
   roundsBeforeLongBreak: number;
 
   @IsBoolean()

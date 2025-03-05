@@ -103,21 +103,29 @@ export class UsersService {
     });
   }
 
-  async searchUsers(query: string) {
-    return this.prisma.user.findMany({
-      where: {
-        OR: [
-          { username: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        createdAt: true,
-      },
-    });
+  async searchUsers(userId: number, query: string) {
+    if (!query) {
+      return [];
+    }
+
+    return (
+      await this.prisma.user.findMany({
+        where: {
+          OR: [
+            { username: { contains: query, mode: 'insensitive' } },
+            { email: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+          ],
+          NOT: { id: userId },
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          createdAt: true,
+        },
+      })
+    ).filter((u) => u.id !== userId);
   }
 
   async createUser(dto: CreateUserDto) {
@@ -135,6 +143,7 @@ export class UsersService {
             shortBreakDuration: 5,
             longBreakDuration: 15,
             roundsBeforeLongBreak: 4,
+            roundsPlanned: 4,
             autoStartPomodoros: true,
             soundEnabled: true,
             autoStartBreaks: true,
@@ -147,6 +156,39 @@ export class UsersService {
     });
 
     return user;
+  }
+
+  async getMySettings(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { settings: true },
+    });
+
+    if (!user?.settings) {
+      const data = {
+        workDuration: 25,
+        shortBreakDuration: 5,
+        longBreakDuration: 15,
+        roundsBeforeLongBreak: 4,
+        autoStartPomodoros: true,
+        soundEnabled: true,
+        autoStartBreaks: true,
+      };
+      const settings = await this.prisma.userSettings.create({
+        data: {
+          ...data,
+          user: {
+            connect: {
+              id: userId,
+            },
+          },
+        },
+      });
+
+      return settings;
+    }
+
+    return user.settings;
   }
 
   async deleteUser(userId: number) {

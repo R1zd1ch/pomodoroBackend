@@ -28,6 +28,12 @@ export class NotificationService implements OnModuleInit {
   }
 
   async create(userId: number, dto: CreateNotificationDto) {
+    if (dto.type === 'FRIEND_REQUEST' && dto.payload && dto.payload.senderId) {
+      dto.payload.sender = await this.prisma.user.findUnique({
+        where: { id: dto.payload.senderId as number },
+      });
+    }
+
     const notification = await this.prisma.notification.create({
       data: {
         ...dto,
@@ -41,7 +47,9 @@ export class NotificationService implements OnModuleInit {
       notification,
     });
 
-    return notification;
+    return {
+      ...notification,
+    };
   }
 
   async getUserNotifications(
@@ -80,6 +88,43 @@ export class NotificationService implements OnModuleInit {
     return this.prisma.notification.updateMany({
       where: { userId },
       data: { read: true },
+    });
+  }
+
+  async deleteNotification(userId: number, notificationId: string) {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.userId !== userId) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    return this.prisma.notification.delete({
+      where: { id: notificationId },
+    });
+  }
+
+  async deleteManyNotifications(userId: number, notificationIds: string[]) {
+    const notifications = await this.prisma.notification.findMany({
+      where: {
+        userId,
+        id: {
+          in: notificationIds,
+        },
+      },
+    });
+
+    if (notifications.length !== notificationIds.length) {
+      throw new NotFoundException('Notification not found');
+    }
+    return this.prisma.notification.deleteMany({
+      where: {
+        userId,
+        id: {
+          in: notificationIds,
+        },
+      },
     });
   }
 }

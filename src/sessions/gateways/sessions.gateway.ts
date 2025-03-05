@@ -12,7 +12,8 @@ import { Server, Socket } from 'socket.io';
 import { SessionMemberStatus, SessionStatus } from '@prisma/client';
 import { Logger } from '@nestjs/common';
 
-@WebSocketGateway(3501, {
+@WebSocketGateway({
+  namespace: '/sessions',
   cors: {
     origin: '*',
   },
@@ -25,15 +26,24 @@ export class SessionsGateway
 
   constructor(private readonly sessionsService: SessionsService) {}
   handleConnection(client: Socket) {
+    const userId = Number(client.handshake.query.userId);
+    const sessionId = String(client.handshake.query.sessionId);
+
+    if (userId && sessionId) {
+      client.data = { userId, sessionId };
+      this.logger.log(`User ${userId} connected to session ${sessionId}`);
+    }
     console.log('Client connected:', client.id);
   }
 
   async handleDisconnect(client: Socket) {
-    const data = client.handshake.query;
-    const userId = Number(data.userId);
-    const sessionId = String(data.sessionId);
+    const { userId, sessionId } = client.data as {
+      userId: number;
+      sessionId: string;
+    };
 
     if (userId && sessionId) {
+      this.logger.log(`User ${userId} disconnected from session ${sessionId}`);
       await this.sessionsService.leaveSession(userId, sessionId);
       this.server.to(`session_${sessionId}`).emit('userLeft', { userId });
       console.log(`User ${userId} left session ${sessionId}`);
@@ -52,6 +62,7 @@ export class SessionsGateway
       data.sessionId,
       { initialStatus: SessionMemberStatus.READY },
     );
+    console.log('joinedSession');
 
     this.server.to(`session_${data.sessionId}`).emit('userJoined', {
       userId: data.userId,

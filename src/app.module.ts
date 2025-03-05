@@ -8,8 +8,20 @@ import { SessionsModule } from './sessions/sessions.module';
 import { ChatModule } from './chat/chat.module';
 import { FriendsModule } from './friends/friends.module';
 import { NotificationModule } from './notification/notification.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
-  imports: [AuthModule, UsersModule, PrismaModule, TasksModule, CategoriesModule, SessionsModule, ChatModule, FriendsModule, NotificationModule],
+  imports: [
+    EventEmitterModule.forRoot(),
+    AuthModule,
+    UsersModule,
+    PrismaModule,
+    TasksModule,
+    CategoriesModule,
+    SessionsModule,
+    ChatModule,
+    FriendsModule,
+    NotificationModule,
+  ],
 })
 export class AppModule {}

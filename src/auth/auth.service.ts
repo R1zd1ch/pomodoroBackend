@@ -6,12 +6,14 @@ import { Tokens } from './types';
 import { JwtService } from '@nestjs/jwt';
 import { User } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private userService: UsersService,
   ) {}
 
   async hashData(data: string) {
@@ -42,8 +44,6 @@ export class AuthService {
   }
 
   async signuplocal(dto: SignupDto): Promise<Tokens & { user: User }> {
-    const hash = await this.hashData(dto.password);
-
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -52,9 +52,7 @@ export class AuthService {
       throw new ForbiddenException('User already exists');
     }
 
-    const newUser = await this.prisma.user.create({
-      data: { email: dto.email, username: dto.username, hash: hash },
-    });
+    const newUser = await this.userService.createUser(dto);
 
     const tokens = await this.getTokens(newUser.id, newUser.email);
 
@@ -72,10 +70,12 @@ export class AuthService {
     if (dto.email) {
       user = (await this.prisma.user.findUnique({
         where: { email: dto.email },
+        include: { settings: true },
       })) as User;
     } else {
       user = (await this.prisma.user.findUnique({
         where: { username: dto.username },
+        include: { settings: true },
       })) as User;
     }
 

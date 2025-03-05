@@ -46,6 +46,7 @@ model UserSettings {
   shortBreakDuration    Int     @default(5)
   longBreakDuration     Int     @default(15)
   roundsBeforeLongBreak Int     @default(4)
+  roundsPlanned         Int     @default(4)
   autoStartBreaks       Boolean @default(false)
   autoStartPomodoros    Boolean @default(false)
   soundEnabled          Boolean @default(true)
@@ -128,17 +129,28 @@ enum SessionStatus {
   COMPLETED
 }
 
+enum SessionType {
+  SOLO
+  GROUP
+}
+
 model Session {
-  id            String          @id @default(uuid())
-  workDuration  Int             @default(25)
-  breakDuration Int             @default(5)
-  roundsPlanned Int             @default(4)
-  currentRound  Int             @default(0)
-  status        SessionStatus   @default(PAUSED)
-  startTime     DateTime
-  endTime       DateTime?
-  creatorId     Int
-  participants  SessionMember[]
+  id                    String          @id @default(uuid())
+  name                  String?
+  description           String?
+  workDuration          Int             @default(25)
+  shortBreakDuration    Int             @default(5)
+  longBreakDuration     Int             @default(10)
+  roundsBeforeLongBreak Int             @default(4)
+  roundsPlanned         Int             @default(4)
+  currentRound          Int             @default(1)
+  status                SessionStatus   @default(PAUSED)
+  type                  SessionType     @default(GROUP)
+  roundTimeLeft         Int?
+  startTime             DateTime
+  endTime               DateTime?
+  creatorId             Int
+  participants          SessionMember[]
 
   creator User  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   chat    Chat?

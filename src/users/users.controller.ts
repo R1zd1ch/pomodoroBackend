@@ -5,6 +5,7 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,13 +16,18 @@ import { AtGuard, IRequest } from 'src/common/guards';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 @UseGuards(AtGuard)
-@Controller('user')
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('me')
   getMe(@Req() req: IRequest) {
     return this.usersService.getUserProfile(+req.user.sub);
+  }
+
+  @Get('me/settings')
+  getMySettings(@Req() req: IRequest) {
+    return this.usersService.getMySettings(+req.user.sub);
   }
 
   @Patch('me')
@@ -45,7 +51,7 @@ export class UsersController {
   }
 
   @Get('search')
-  searchUsers(@Req() req: IRequest) {
-    return this.usersService.searchUsers(req.user.sub);
+  search(@Req() req: IRequest, @Query('query') query: string) {
+    return this.usersService.searchUsers(+req.user.sub, query);
   }
 }

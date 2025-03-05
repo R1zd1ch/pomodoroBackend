@@ -46,9 +46,9 @@ export class FriendsService {
 
     this.eventEmitter.emit('notification.create', {
       userId: receiverId,
-      dto: {
+      notification: {
         type: 'FRIEND_REQUEST',
-        message: `${friendship.user.name} sent you a friend request`,
+        message: `${friendship.user.name !== null ? friendship.user.name : `@${friendship.user.username}`} sent you a friend request`,
         payload: { friendshipId: friendship.id, senderId: senderId },
       },
     });
@@ -69,11 +69,13 @@ export class FriendsService {
       throw new NotFoundException('Friend request not found');
     }
 
-    return this.prisma.friendship.update({
+    const updatedFriendship = this.prisma.friendship.update({
       where: { id: friendshipId },
       data: { status },
       include: { user: true, friend: true },
     });
+
+    return updatedFriendship;
   }
   async getFriends(userId: number) {
     return await this.prisma.friendship.findMany({
@@ -84,7 +86,6 @@ export class FriendsService {
         ],
       },
 
-      //Todo оптимизировать
       include: { user: true, friend: true },
     });
   }

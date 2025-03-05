@@ -20,6 +20,7 @@ export class FriendsController {
   @Post('request/:userId')
   sendRequest(@Req() req: IRequest, @Param('userId') receiverId: string) {
     const senderId = req.user.sub;
+    console.log(senderId, receiverId);
     return this.friendsService.sendFriendRequest(+senderId, +receiverId);
   }
 
@@ -30,6 +31,7 @@ export class FriendsController {
     @Body('status') status: FriendshipStatus,
   ) {
     const userId = req.user.sub;
+    console.log(userId, friendshipId, status);
     return this.friendsService.respondToRequest(+userId, friendshipId, status);
   }
 
